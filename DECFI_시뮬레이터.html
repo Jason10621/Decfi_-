@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DECFI — 유전 알고리즘 기반 미생물 환경정화 시뮬레이터</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Pretendard:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0f;--bg2:#111118;--bg3:#1a1a24;--bg4:#222233;
+  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+  --blue:#0a84ff;--blue2:#409cff;--blue3:#80bbff;
+  --green:#32d74b;--green2:#1a8a2c;
+  --amber:#ffd60a;--amber2:#ff9f0a;
+  --red:#ff453a;--purple:#bf5af2;--teal:#5ac8fa;
+  --g100:#d4d4de;--g200:#b8b8c4;--g300:#9898a4;
+  --g400:#70707a;--g500:#52525c;--g600:#3a3a42;
+  --white:#fff;
+  --f-mono:'JetBrains Mono',monospace;
+  --f-sans:'Pretendard',-apple-system,sans-serif;
+  --grid-w:80;--grid-h:60;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;font-family:var(--f-sans);background:var(--bg);color:var(--white);-webkit-font-smoothing:antialiased}
+
+/* ── TOOLTIP ── */
+.tooltip-wrap{position:relative;display:inline-flex}
+.tooltip-btn{
+  width:16px;height:16px;border-radius:50%;border:1px solid var(--blue2);
+  background:rgba(64,156,255,.15);color:var(--blue2);
+  font-size:10px;font-weight:700;font-family:var(--f-mono);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all .2s;
+}
+.tooltip-btn:hover{background:rgba(64,156,255,.35);}
+.tooltip-box{
+  position:absolute;z-index:9999;
+  background:#1c1c2e;border:1px solid rgba(64,156,255,.4);
+  border-radius:10px;padding:12px 14px;
+  font-size:12px;color:var(--g100);line-height:1.7;
+  width:220px;pointer-events:none;opacity:0;
+  transition:opacity .2s;box-shadow:0 8px 32px rgba(0,0,0,.6);
+}
+.tooltip-wrap:hover .tooltip-box{opacity:1}
+.tooltip-box.right{left:22px;top:-4px}
+.tooltip-box.left{right:22px;top:-4px}
+.tooltip-box.top{bottom:22px;left:50%;transform:translateX(-50%)}
+
+/* ── MODAL ── */
+#modal-overlay{
+  position:fixed;inset:0;z-index:10000;
+  background:rgba(0,0,0,.75);backdrop-filter:blur(8px);
+  display:none;align-items:center;justify-content:center;
+}
+#modal-overlay.open{display:flex}
+#modal-box{
+  background:#14141f;border:1px solid rgba(64,156,255,.3);
+  border-radius:18px;padding:28px 32px;max-width:520px;width:90%;
+  box-shadow:0 24px 80px rgba(0,0,0,.8);
+  position:relative;
+}
+#modal-title{font-size:17px;font-weight:700;color:var(--white);margin-bottom:10px}
+#modal-body{font-size:13.5px;color:var(--g200);line-height:1.75}
+#modal-close{
+  position:absolute;top:14px;right:16px;
+  background:none;border:none;color:var(--g400);font-size:20px;cursor:pointer;
+  transition:color .2s;
+}
+#modal-close:hover{color:var(--white)}
+
+/* ── LAYOUT ── */
+#app{width:100vw;height:100vh;display:grid;grid-template-rows:52px 1fr;grid-template-columns:1fr 300px}
+#topbar{grid-column:1/-1;grid-row:1;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(0,0,0,.85);border-bottom:1px solid var(--border);z-index:100;backdrop-filter:blur(20px)}
+#canvas-area{grid-column:1;grid-row:2;position:relative;overflow:hidden;background:var(--bg2)}
+#right-panel{grid-column:2;grid-row:2;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+
+/* ── TOPBAR ── */
+.tb-logo{display:flex;align-items:center;gap:8px}
+.tb-logo-decfi{font-family:var(--f-mono);font-size:18px;font-weight:700;color:var(--blue2);letter-spacing:.06em}
+.tb-logo-sub{font-size:11.5px;color:var(--g400);font-family:var(--f-mono)}
+.tb-controls{display:flex;align-items:center;gap:8px}
+.tb-btn{
+  display:flex;align-items:center;gap:5px;
+  padding:5px 14px;border-radius:8px;border:1px solid var(--border2);
+  background:rgba(255,255,255,.05);color:var(--g100);
+  font-size:12.5px;font-weight:500;font-family:var(--f-sans);
+  cursor:pointer;transition:all .18s;
+}
+.tb-btn:hover{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.25)}
+.tb-btn.primary{background:rgba(10,132,255,.22);border-color:rgba(10,132,255,.5);color:var(--blue2)}
+.tb-btn.primary:hover{background:rgba(10,132,255,.38)}
+.tb-btn.danger{background:rgba(255,69,58,.15);border-color:rgba(255,69,58,.4);color:#ff6961}
+.tb-btn.danger:hover{background:rgba(255,69,58,.28)}
+.tb-btn.success{background:rgba(50,215,75,.15);border-color:rgba(50,215,75,.4);color:var(--green)}
+.tb-speed{display:flex;gap:3px;align-items:center}
+.sp-btn{
+  width:30px;height:26px;border-radius:6px;border:1px solid var(--border);
+  background:rgba(255,255,255,.04);color:var(--g300);
+  font-size:11px;font-weight:600;font-family:var(--f-mono);cursor:pointer;
+  transition:all .15s;
+}
+.sp-btn:hover,.sp-btn.on{background:rgba(64,156,255,.2);border-color:rgba(64,156,255,.5);color:var(--blue2)}
+.tb-sep{width:1px;height:24px;background:var(--border);margin:0 4px}
+.tb-members{display:flex;gap:6px;align-items:center}
+.member-tag{
+  font-size:11px;font-weight:500;padding:3px 10px;
+  border-radius:100px;border:1px solid;
+}
+.m-lee{border-color:rgba(64,156,255,.4);background:rgba(64,156,255,.1);color:var(--blue2)}
+.m-kim{border-color:rgba(50,215,75,.4);background:rgba(50,215,75,.1);color:var(--green)}
+.m-jang{border-color:rgba(191,90,242,.4);background:rgba(191,90,242,.1);color:var(--purple)}
+
+/* ── CANVAS ── */
+#sim-canvas{display:block;cursor:crosshair}
+#canvas-overlay{
+  position:absolute;top:8px;left:8px;
+  display:flex;flex-direction:column;gap:6px;pointer-events:none;
+}
+.overlay-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(0,0,0,.75);border:1px solid var(--border);
+  border-radius:8px;padding:5px 10px;
+  font-family:var(--f-mono);font-size:11px;color:var(--g200);
+  backdrop-filter:blur(8px);
+}
+.overlay-badge b{color:var(--amber)}
+.overlay-badge.green b{color:var(--green)}
+.tool-hint{
+  position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,.7);border:1px solid var(--border);
+  border-radius:8px;padding:5px 14px;
+  font-size:11.5px;color:var(--g300);pointer-events:none;
+  font-family:var(--f-mono);letter-spacing:.04em;
+}
+.legend{
+  position:absolute;bottom:10px;left:10px;
+  background:rgba(0,0,0,.75);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;
+  display:flex;flex-direction:column;gap:6px;
+  backdrop-filter:blur(8px);pointer-events:none;
+}
+.legend-item{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--g300)}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.legend-sq{width:12px;height:8px;border-radius:2px;flex-shrink:0;opacity:.7}
+
+/* ── RIGHT PANEL ── */
+.rp-section{
+  border-bottom:1px solid var(--border);
+  padding:12px 14px;flex-shrink:0;
+}
+.rp-section:last-child{border-bottom:none;flex:1;overflow-y:auto}
+.rp-head{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:10px;
+}
+.rp-title{
+  display:flex;align-items:center;gap:6px;
+  font-size:11px;font-weight:600;font-family:var(--f-mono);
+  color:var(--g300);letter-spacing:.1em;text-transform:uppercase;
+}
+.rp-title-dot{width:6px;height:6px;border-radius:50%}
+
+/* stat rows */
+.stat-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.stat-lbl{font-size:12px;color:var(--g400)}
+.stat-val{font-family:var(--f-mono);font-size:13px;font-weight:600;color:var(--white)}
+.stat-val.blue{color:var(--blue2)}.stat-val.green{color:var(--green)}.stat-val.amber{color:var(--amber)}.stat-val.red{color:var(--red)}
+
+/* fitness chart */
+#chart-canvas{width:100%;height:80px;display:block;border-radius:8px;background:rgba(0,0,0,.3)}
+
+/* species bars */
+.species-bar-wrap{margin-bottom:8px}
+.species-bar-head{display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px}
+.species-bar-track{height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
+.species-bar-fill{height:100%;border-radius:3px;transition:width .5s}
+
+/* pollution gauges */
+.poll-gauge{margin-bottom:9px}
+.poll-gauge-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.poll-name{font-size:11.5px;color:var(--g300)}
+.poll-pct{font-family:var(--f-mono);font-size:11px;color:var(--g400)}
+.poll-track{height:6px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
+.poll-fill{height:100%;border-radius:3px;transition:width .3s}
+
+/* genome inspector */
+#genome-panel{display:none}
+#genome-panel.open{display:block}
+.gene-row2{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);
+}
+.gene-row2:last-child{border-bottom:none}
+.gene-name2{font-family:var(--f-mono);font-size:11px;color:var(--g300)}
+.gene-bar2{flex:1;height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden;margin:0 8px}
+.gene-fill2{height:100%;border-radius:2px;background:var(--blue2)}
+.gene-val2{font-family:var(--f-mono);font-size:11px;color:var(--blue2);width:34px;text-align:right}
+
+/* param sliders */
+.param-group{margin-bottom:12px}
+.param-label{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:5px;font-size:12px;color:var(--g300);
+}
+.param-val{font-family:var(--f-mono);font-size:11.5px;color:var(--blue2)}
+input[type=range]{
+  -webkit-appearance:none;width:100%;height:4px;
+  background:rgba(255,255,255,.12);border-radius:2px;cursor:pointer;outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:14px;height:14px;
+  background:var(--blue2);border-radius:50%;cursor:pointer;
+  box-shadow:0 0 6px rgba(64,156,255,.5);
+}
+
+/* pollution tool selector */
+.tool-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px}
+.tool-btn2{
+  padding:6px 4px;border-radius:7px;border:1px solid var(--border);
+  background:rgba(255,255,255,.03);cursor:pointer;
+  font-size:11px;color:var(--g300);text-align:center;
+  transition:all .18s;display:flex;flex-direction:column;align-items:center;gap:3px;
+}
+.tool-btn2:hover{background:rgba(255,255,255,.08)}
+.tool-btn2.on{background:rgba(64,156,255,.18);border-color:rgba(64,156,255,.5);color:var(--blue2)}
+.tool-dot{width:8px;height:8px;border-radius:50%;margin:0 auto}
+
+/* scenario buttons */
+.scenario-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px}
+.sc-btn{
+  padding:8px 4px;border-radius:9px;border:1px solid var(--border);
+  background:rgba(255,255,255,.03);cursor:pointer;
+  font-size:11px;font-weight:500;color:var(--g300);text-align:center;
+  transition:all .18s;
+}
+.sc-btn:hover{background:rgba(255,255,255,.08);color:var(--white)}
+
+/* scrollbar in panel */
+.rp-section::-webkit-scrollbar{width:3px}
+.rp-section::-webkit-scrollbar-track{background:transparent}
+.rp-section::-webkit-scrollbar-thumb{background:var(--g600);border-radius:2px}
+
+/* notification */
+#notif{
+  position:fixed;bottom:24px;right:320px;z-index:9000;
+  background:#1c1c2e;border:1px solid rgba(64,156,255,.4);
+  border-radius:10px;padding:10px 18px;
+  font-size:13px;color:var(--g100);
+  opacity:0;transform:translateY(10px);transition:all .3s;
+  pointer-events:none;
+}
+#notif.show{opacity:1;transform:translateY(0)}
+
+/* gen badge animation */
+@keyframes genFlash{0%{background:rgba(50,215,75,.25)}100%{background:transparent}}
+.gen-flash{animation:genFlash .5s ease}
+</style>
+</head>
+<body>
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <button id="modal-close">✕</button>
+    <div id="modal-title"></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- NOTIFICATION -->
+<div id="notif" id="notif"></div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <div class="tb-logo">
+      <span class="tb-logo-decfi">DECFI</span>
+      <span class="tb-logo-sub">유전 알고리즘 기반 미생물 환경정화 시뮬레이터</span>
+    </div>
+    <div class="tb-controls">
+      <button class="tb-btn primary" id="btn-run" onclick="toggleRun()">▶ 시작</button>
+      <button class="tb-btn" id="btn-step" onclick="stepOnce()">한 세대</button>
+      <button class="tb-btn danger" id="btn-reset" onclick="resetSim()">↺ 초기화</button>
+      <div class="tb-sep"></div>
+      <div class="tb-speed">
+        <span style="font-size:11px;color:var(--g400);margin-right:4px">속도</span>
+        <button class="sp-btn on" id="sp1" onclick="setSpeed(1,this)">1×</button>
+        <button class="sp-btn" id="sp2" onclick="setSpeed(3,this)">3×</button>
+        <button class="sp-btn" id="sp4" onclick="setSpeed(8,this)">8×</button>
+      </div>
+      <div class="tb-sep"></div>
+      <button class="tb-btn" onclick="showModal('about')">ℹ 도움말</button>
+      <div class="tb-sep"></div>
+      <div class="tb-members">
+        <span class="member-tag m-lee">이정욱</span>
+        <span class="member-tag m-kim">김진우</span>
+        <span class="member-tag m-jang">장현준</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS AREA -->
+  <div id="canvas-area">
+    <canvas id="sim-canvas"></canvas>
+
+    <!-- overlay info -->
+    <div id="canvas-overlay">
+      <div class="overlay-badge" id="ov-gen">세대 <b id="ov-gen-v">0</b></div>
+      <div class="overlay-badge green" id="ov-fit">최고 적합도 <b id="ov-fit-v">0.00</b></div>
+      <div class="overlay-badge" id="ov-pop">개체수 <b id="ov-pop-v">0</b></div>
+    </div>
+
+    <!-- legend -->
+    <div class="legend">
+      <div style="font-size:10px;color:var(--g500);font-family:var(--f-mono);letter-spacing:.08em;margin-bottom:3px">오염물질</div>
+      <div class="legend-item"><div class="legend-sq" style="background:#dc3232"></div>중금속</div>
+      <div class="legend-item"><div class="legend-sq" style="background:#8b5a2b"></div>유기폐기물</div>
+      <div class="legend-item"><div class="legend-sq" style="background:#646464"></div>기름</div>
+      <div class="legend-item"><div class="legend-sq" style="background:#f07820"></div>미세플라스틱</div>
+      <div style="width:100%;height:1px;background:var(--border);margin:3px 0"></div>
+      <div style="font-size:10px;color:var(--g500);font-family:var(--f-mono);letter-spacing:.08em;margin-bottom:3px">미생물</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#409cff"></div>종 A (중금속 특화)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#32d74b"></div>종 B (유기물 특화)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#bf5af2"></div>종 C (기름 특화)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ffd60a"></div>종 D (범용)</div>
+    </div>
+
+    <div class="tool-hint" id="tool-hint">클릭: 오염 추가 | Shift+클릭: 미생물 정보</div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="right-panel">
+
+    <!-- GA 상태 -->
+    <div class="rp-section">
+      <div class="rp-head">
+        <div class="rp-title">
+          <div class="rp-title-dot" style="background:var(--blue2)"></div>
+          GA 진행 현황
+        </div>
+        <div class="tooltip-wrap">
+          <div class="tooltip-btn" onclick="showModal('ga-status')">?</div>
+          <div class="tooltip-box right">유전 알고리즘의 현재 실행 상태입니다. 세대가 증가할수록 미생물이 환경에 더 잘 적응합니다.</div>
+        </div>
+      </div>
+      <div class="stat-row"><span class="stat-lbl">현재 세대</span><span class="stat-val amber" id="stat-gen">0</span></div>
+      <div class="stat-row"><span class="stat-lbl">최고 적합도</span><span class="stat-val green" id="stat-best">0.000</span></div>
+      <div class="stat-row"><span class="stat-lbl">평균 적합도</span><span class="stat-val blue" id="stat-avg">0.000</span></div>
+      <div class="stat-row"><span class="stat-lbl">생존 개체수</span><span class="stat-val" id="stat-pop">0</span></div>
+      <div class="stat-row"><span class="stat-lbl">총 틱</span><span class="stat-val" id="stat-tick">0</span></div>
+      <canvas id="chart-canvas"></canvas>
+      <div style="display:flex;gap:10px;margin-top:5px">
+        <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--g400)">
+          <div style="width:10px;height:2px;background:var(--amber);border-radius:1px"></div>Best
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--g400)">
+          <div style="width:10px;height:2px;background:var(--blue2);border-radius:1px"></div>Avg
+        </div>
+      </div>
+    </div>
+
+    <!-- 오염도 현황 -->
+    <div class="rp-section">
+      <div class="rp-head">
+        <div class="rp-title">
+          <div class="rp-title-dot" style="background:var(--red)"></div>
+          오염도 현황
+        </div>
+        <div class="tooltip-wrap">
+          <div class="tooltip-btn" onclick="showModal('pollution')">?</div>
+          <div class="tooltip-box right">4종 오염물질의 격자 전체 잔존 비율입니다. 미생물이 분해할수록 낮아집니다.</div>
+        </div>
+      </div>
+      <div class="poll-gauge">
+        <div class="poll-gauge-head"><span class="poll-name">중금속</span><span class="poll-pct" id="p-heavy">0%</span></div>
+        <div class="poll-track"><div class="poll-fill" id="pf-heavy" style="width:0%;background:#dc3232"></div></div>
+      </div>
+      <div class="poll-gauge">
+        <div class="poll-gauge-head"><span class="poll-name">유기폐기물</span><span class="poll-pct" id="p-organic">0%</span></div>
+        <div class="poll-track"><div class="poll-fill" id="pf-organic" style="width:0%;background:#8b5a2b"></div></div>
+      </div>
+      <div class="poll-gauge">
+        <div class="poll-gauge-head"><span class="poll-name">기름</span><span class="poll-pct" id="p-oil">0%</span></div>
+        <div class="poll-track"><div class="poll-fill" id="pf-oil" style="width:0%;background:#646464"></div></div>
+      </div>
+      <div class="poll-gauge">
+        <div class="poll-gauge-head"><span class="poll-name">미세플라스틱</span><span class="poll-pct" id="p-micro">0%</span></div>
+        <div class="poll-track"><div class="poll-fill" id="pf-micro" style="width:0%;background:#f07820"></div></div>
+      </div>
+    </div>
+
+    <!-- 종 분포 -->
+    <div class="rp-section">
+      <div class="rp-head">
+        <div class="rp-title">
+          <div class="rp-title-dot" style="background:var(--purple)"></div>
+          종 분포
+        </div>
+        <div class="tooltip-wrap">
+          <div class="tooltip-btn" onclick="showModal('species')">?</div>
+          <div class="tooltip-box right">4개 미생물 종의 개체수 비율입니다. 환경에 적합한 종이 우세해지는 자연선택이 진행됩니다.</div>
+        </div>
+      </div>
+      <div class="species-bar-wrap">
+        <div class="species-bar-head"><span style="color:#409cff;font-size:11.5px">종 A (중금속)</span><span style="font-family:var(--f-mono);font-size:11px;color:var(--g400)" id="sp-a-n">0</span></div>
+        <div class="species-bar-track"><div class="species-bar-fill" id="sp-a-bar" style="background:#409cff;width:25%"></div></div>
+      </div>
+      <div class="species-bar-wrap">
+        <div class="species-bar-head"><span style="color:#32d74b;font-size:11.5px">종 B (유기물)</span><span style="font-family:var(--f-mono);font-size:11px;color:var(--g400)" id="sp-b-n">0</span></div>
+        <div class="species-bar-track"><div class="species-bar-fill" id="sp-b-bar" style="background:#32d74b;width:25%"></div></div>
+      </div>
+      <div class="species-bar-wrap">
+        <div class="species-bar-head"><span style="color:#bf5af2;font-size:11.5px">종 C (기름)</span><span style="font-family:var(--f-mono);font-size:11px;color:var(--g400)" id="sp-c-n">0</span></div>
+        <div class="species-bar-track"><div class="species-bar-fill" id="sp-c-bar" style="background:#bf5af2;width:25%"></div></div>
+      </div>
+      <div class="species-bar-wrap">
+        <div class="species-bar-head"><span style="color:#ffd60a;font-size:11.5px">종 D (범용)</span><span style="font-family:var(--f-mono);font-size:11px;color:var(--g400)" id="sp-d-n">0</span></div>
+        <div class="species-bar-track"><div class="species-bar-fill" id="sp-d-bar" style="background:#ffd60a;width:25%"></div></div>
+      </div>
+    </div>
+
+    <!-- 오염 도구 -->
+    <div class="rp-section">
+      <div class="rp-head">
+        <div class="rp-title">
+          <div class="rp-title-dot" style="background:var(--amber2)"></div>
+          오염 도구
+        </div>
+        <div class="tooltip-wrap">
+          <div class="tooltip-btn" onclick="showModal('tool')">?</div>
+          <div class="tooltip-box right">캔버스를 클릭·드래그하여 오염물질을 추가합니다. 오염 유형을 선택하세요.</div>
+        </div>
+      </div>
+      <div class="tool-grid">
+        <div class="tool-btn2 on" id="tool-h" onclick="setTool('heavy')">
+          <div class="tool-dot" style="background:#dc3232"></div>중금속
+        </div>
+        <div class="tool-btn2" id="tool-o" onclick="setTool('organic')">
+          <div class="tool-dot" style="background:#8b5a2b"></div>유기물
+        </div>
+        <div class="tool-btn2" id="tool-i" onclick="setTool('oil')">
+          <div class="tool-dot" style="background:#646464"></div>기름
+        </div>
+        <div class="tool-btn2" id="tool-m" onclick="setTool('micro')">
+          <div class="tool-dot" style="background:#f07820"></div>플라스틱
+        </div>
+      </div>
+      <div style="display:flex;gap:5px">
+        <button class="tb-btn" style="font-size:11.5px;flex:1" onclick="clearAllPollution()">오염 제거</button>
+        <button class="tb-btn" style="font-size:11.5px;flex:1" onclick="addRandomPollution()">랜덤 오염</button>
+      </div>
+    </div>
+
+    <!-- 시나리오 -->
+    <div class="rp-section">
+      <div class="rp-head">
+        <div class="rp-title">
+          <div class="rp-title-dot" style="background:var(--teal)"></div>
+          시나리오
+        </div>
+        <div class="tooltip-wrap">
+          <div class="tooltip-btn" onclick="showModal('scenario')">?</div>
+          <div class="tooltip-box right">미리 설정된 오염 시나리오를 불러옵니다. 각 시나리오에 맞는 미생물이 진화합니다.</div>
+        </div>
+      </div>
+      <div class="scenario-grid">
+        <button class="sc-btn" onclick="loadScenario('heavy')">⚙<br>중금속<br>오염 토양</button>
+        <button class="sc-btn" onclick="loadScenario('oil')">🌊<br>기름<br>유출 해양</button>
+        <button class="sc-btn" onclick="loadScenario('mixed')">☣<br>복합<br>오염 지역</button>
+      </div>
+    </div>
+
+    <!-- GA 파라미터 -->
+    <div class="rp-section" style="flex:1;overflow-y:auto">
+      <div class="rp-head">
+        <div class="rp-title">
+          <div class="rp-title-dot" style="background:var(--green)"></div>
+          GA 파라미터
+        </div>
+        <div class="tooltip-wrap">
+          <div class="tooltip-btn" onclick="showModal('params')">?</div>
+          <div class="tooltip-box left">유전 알고리즘의 하이퍼파라미터를 조정합니다. 변이율이 높으면 탐색이 넓어지고 수렴이 느려집니다.</div>
+        </div>
+      </div>
+
+      <div class="param-group">
+        <div class="param-label">
+          변이율 <span style="font-size:11px;color:var(--g500)">(Mutation Rate)</span>
+          <span class="param-val" id="v-mut">0.03</span>
+        </div>
+        <input type="range" min="0.005" max="0.15" step="0.005" value="0.03" id="sl-mut" oninput="updateParam('mut',this.value)">
+      </div>
+      <div class="param-group">
+        <div class="param-label">
+          교차율 <span style="font-size:11px;color:var(--g500)">(Crossover Rate)</span>
+          <span class="param-val" id="v-cross">0.85</span>
+        </div>
+        <input type="range" min="0.3" max="1.0" step="0.05" value="0.85" id="sl-cross" oninput="updateParam('cross',this.value)">
+      </div>
+      <div class="param-group">
+        <div class="param-label">
+          개체수 <span style="font-size:11px;color:var(--g500)">(Population)</span>
+          <span class="param-val" id="v-pop">60</span>
+        </div>
+        <input type="range" min="20" max="120" step="10" value="60" id="sl-pop" oninput="updateParam('pop',this.value)">
+      </div>
+      <div class="param-group">
+        <div class="param-label">
+          엘리트 보존 <span style="font-size:11px;color:var(--g500)">(Elitism)</span>
+          <span class="param-val" id="v-elite">3</span>
+        </div>
+        <input type="range" min="1" max="8" step="1" value="3" id="sl-elite" oninput="updateParam('elite',this.value)">
+      </div>
+
+      <!-- selected microbe genome -->
+      <div style="margin-top:4px">
+        <div class="rp-head" style="margin-bottom:6px">
+          <div class="rp-title">
+            <div class="rp-title-dot" style="background:var(--teal)"></div>
+            클릭한 미생물 유전자
+          </div>
+          <div class="tooltip-wrap">
+            <div class="tooltip-btn" onclick="showModal('genome')">?</div>
+            <div class="tooltip-box left">Shift+클릭으로 선택한 미생물의 genome(8개 유전자)을 표시합니다.</div>
+          </div>
+        </div>
+        <div id="genome-panel">
+          <div style="font-size:11.5px;color:var(--g400);margin-bottom:8px" id="genome-species-info"></div>
+          <div id="genome-rows"></div>
+        </div>
+        <div id="genome-hint" style="font-size:11.5px;color:var(--g500);font-style:italic">Shift+클릭으로 미생물 선택</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  CONFIG & STATE
+// ════════════════════════════════════════════════════════════
+const CFG = {
+  cellSize: 8,
+  ticksPerGen: 80,
+  popSize: 60,
+  mutRate: 0.03,
+  crossRate: 0.85,
+  elitism: 3,
+  diffusionRate: { heavy:0.018, organic:0.07, oil:0.04, micro:0.025 },
+  decayRate:     { heavy:0.0005, organic:0.008, oil:0.003, micro:0.0015 },
+  pollutantColors:{ heavy:[220,50,50], organic:[139,90,43], oil:[100,100,100], micro:[240,128,30] },
+  speciesColors: ['#409cff','#32d74b','#bf5af2','#ffd60a'],
+  speciesNames: ['종 A','종 B','종 C','종 D'],
+};
+
+let GW, GH; // grid dimensions
+let running = false, speed = 1, tick = 0, gen = 0;
+let animId = null, lastTime = 0, accumMs = 0;
+let currentTool = 'heavy';
+let mouseDown = false;
+let selectedMicrobe = null;
+
+// Grid state (typed arrays for performance)
+let pollutionGrids = {}; // heavy/organic/oil/micro → Float32Array
+let population = [];
+let fitnessHistory = { best:[], avg:[] };
+
+// ════════════════════════════════════════════════════════════
+//  CANVAS SETUP
+// ════════════════════════════════════════════════════════════
+const canvas = document.getElementById('sim-canvas');
+const ctx = canvas.getContext('2d');
+const chartCanvas = document.getElementById('chart-canvas');
+const chartCtx = chartCanvas.getContext('2d');
+
+function resizeCanvas(){
+  const area = document.getElementById('canvas-area');
+  canvas.width = area.clientWidth;
+  canvas.height = area.clientHeight;
+  GW = Math.floor(canvas.width / CFG.cellSize);
+  GH = Math.floor(canvas.height / CFG.cellSize);
+  if(!pollutionGrids.heavy || pollutionGrids.heavy.length !== GW*GH) initGrids();
+
+  chartCanvas.width = chartCanvas.offsetWidth;
+  chartCanvas.height = chartCanvas.offsetHeight || 80;
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════
+function initGrids(){
+  for(const k of ['heavy','organic','oil','micro'])
+    pollutionGrids[k] = new Float32Array(GW*GH);
+}
+
+function idx(x,y){ return y*GW+x; }
+
+function initPopulation(){
+  population = [];
+  for(let i=0;i<CFG.popSize;i++) population.push(randomMicrobe());
+}
+
+function randomMicrobe(species=null){
+  const sp = species !== null ? species : Math.floor(Math.random()*4);
+  // bias genome toward species specialization
+  const affinities = [Math.random()*0.3, Math.random()*0.3, Math.random()*0.3, Math.random()*0.3];
+  affinities[sp] = 0.5 + Math.random()*0.5;
+  return {
+    x: Math.random()*GW,
+    y: Math.random()*GH,
+    species: sp,
+    energy: 60 + Math.random()*40,
+    age: 0,
+    alive: true,
+    genome: {
+      pollutant_affinity: affinities,
+      decompose_rate:    0.1 + Math.random()*0.6,
+      energy_efficiency: 0.2 + Math.random()*0.5,
+      reproduction_threshold: 60 + Math.random()*60,
+      mutation_rate:     0.005 + Math.random()*0.08,
+      lifespan:          80 + Math.floor(Math.random()*120),
+      mobility:          0.2 + Math.random()*1.6,
+      cooperation_factor:Math.random()*0.8,
+    }
+  };
+}
+
+// ════════════════════════════════════════════════════════════
+//  SIMULATION TICK
+// ════════════════════════════════════════════════════════════
+function simulateTick(){
+  tick++;
+  diffusePollution();
+  moveMicrobes();
+  decomposePollution();
+  energyAndAging();
+  reproduce();
+  killDead();
+
+  if(tick % CFG.ticksPerGen === 0) evolveGeneration();
+}
+
+function diffusePollution(){
+  for(const k of ['heavy','organic','oil','micro']){
+    const g = pollutionGrids[k];
+    const dr = CFG.diffusionRate[k];
+    const decay = CFG.decayRate[k];
+    const tmp = g.slice();
+    for(let y=1;y<GH-1;y++){
+      for(let x=1;x<GW-1;x++){
+        const c = tmp[idx(x,y)];
+        const nbr = (tmp[idx(x-1,y)]+tmp[idx(x+1,y)]+tmp[idx(x,y-1)]+tmp[idx(x,y+1)])*0.25;
+        g[idx(x,y)] = Math.max(0, c + (nbr-c)*dr - c*decay);
+      }
+    }
+  }
+}
+
+function moveMicrobes(){
+  for(const m of population){
+    if(!m.alive) continue;
+    const mob = m.genome.mobility;
+    m.x += (Math.random()-0.5)*mob*2;
+    m.y += (Math.random()-0.5)*mob*2;
+    m.x = Math.max(0, Math.min(GW-1, m.x));
+    m.y = Math.max(0, Math.min(GH-1, m.y));
+  }
+}
+
+function decomposePollution(){
+  const keys = ['heavy','organic','oil','micro'];
+  for(const m of population){
+    if(!m.alive) continue;
+    const gx = Math.floor(m.x), gy = Math.floor(m.y);
+    if(gx<0||gx>=GW||gy<0||gy>=GH) continue;
+    const i2 = idx(gx,gy);
+    let energyGained = 0;
+    for(let k=0;k<4;k++){
+      const key = keys[k];
+      const affinity = m.genome.pollutant_affinity[k];
+      const removed = Math.min(pollutionGrids[key][i2], m.genome.decompose_rate * affinity * 0.08);
+      pollutionGrids[key][i2] -= removed;
+      energyGained += removed * 180;
+    }
+    // cooperation bonus
+    const coop = countNearby(m, 2) * m.genome.cooperation_factor * 0.5;
+    m.energy += energyGained * (1 + coop);
+  }
+}
+
+function countNearby(m, radius){
+  let count=0;
+  for(const o of population){
+    if(o===m||!o.alive) continue;
+    const dx=m.x-o.x, dy=m.y-o.y;
+    if(dx*dx+dy*dy < radius*radius) count++;
+  }
+  return Math.min(count, 5);
+}
+
+function energyAndAging(){
+  for(const m of population){
+    if(!m.alive) continue;
+    m.energy -= m.genome.energy_efficiency * 0.4;
+    m.energy = Math.min(m.energy, 200);
+    m.age++;
+    if(m.energy <= 0 || m.age >= m.genome.lifespan) m.alive = false;
+  }
+}
+
+function reproduce(){
+  const newborns = [];
+  for(const m of population){
+    if(!m.alive) continue;
+    if(m.energy >= m.genome.reproduction_threshold && population.length + newborns.length < CFG.popSize*1.5){
+      const child = Object.assign({}, m, {
+        genome: JSON.parse(JSON.stringify(m.genome)),
+        energy: m.energy * 0.45,
+        age: 0, alive: true,
+        x: m.x + (Math.random()-0.5)*3,
+        y: m.y + (Math.random()-0.5)*3,
+      });
+      m.energy *= 0.55;
+      // small mutation on birth
+      mutateMicrobe(child, m.genome.mutation_rate);
+      newborns.push(child);
+    }
+  }
+  population = population.concat(newborns);
+}
+
+function killDead(){
+  population = population.filter(m=>m.alive);
+}
+
+// ════════════════════════════════════════════════════════════
+//  GENETIC ALGORITHM
+// ════════════════════════════════════════════════════════════
+function evaluateFitness(m){
+  const keys=['heavy','organic','oil','micro'];
+  let decomposed=0;
+  for(let k=0;k<4;k++){
+    decomposed += m.genome.pollutant_affinity[k] * m.genome.decompose_rate;
+  }
+  const survival = m.age / m.genome.lifespan;
+  const coop = m.genome.cooperation_factor;
+  const cost = m.genome.energy_efficiency;
+  return Math.max(0, decomposed*10 + survival*5 + coop*3 - cost*2);
+}
+
+function evolveGeneration(){
+  gen++;
+  if(population.length < 2){ resetPopulation(); return; }
+
+  const fitnesses = population.map(m => ({ m, f: evaluateFitness(m) }));
+  fitnesses.sort((a,b)=>b.f-a.f);
+
+  const bestF = fitnesses[0].f;
+  const avgF  = fitnesses.reduce((s,x)=>s+x.f,0)/fitnesses.length;
+  fitnessHistory.best.push(bestF);
+  fitnessHistory.avg.push(avgF);
+  if(fitnessHistory.best.length > 120){
+    fitnessHistory.best.shift(); fitnessHistory.avg.shift();
+  }
+
+  // elite preservation
+  const newPop = fitnesses.slice(0, CFG.elitism).map(x=>{
+    const c = JSON.parse(JSON.stringify(x.m));
+    c.alive=true; c.age=0; c.energy=80;
+    return c;
+  });
+
+  const targetSize = Math.max(CFG.popSize, 20);
+  while(newPop.length < targetSize){
+    const p1 = tournamentSelect(fitnesses);
+    const p2 = tournamentSelect(fitnesses);
+    const child = Math.random() < CFG.crossRate
+      ? crossover(p1,p2)
+      : JSON.parse(JSON.stringify(p1));
+    child.alive=true; child.age=0;
+    child.energy=50+Math.random()*40;
+    child.x = Math.random()*GW; child.y = Math.random()*GH;
+    mutateMicrobe(child, CFG.mutRate);
+    newPop.push(child);
+  }
+  population = newPop;
+
+  // show gen flash
+  document.getElementById('stat-gen').closest('.rp-section').classList.remove('gen-flash');
+  requestAnimationFrame(()=>document.getElementById('stat-gen').closest('.rp-section').classList.add('gen-flash'));
+}
+
+function tournamentSelect(fitnesses, k=3){
+  let best=null;
+  for(let i=0;i<k;i++){
+    const c = fitnesses[Math.floor(Math.random()*fitnesses.length)];
+    if(!best || c.f > best.f) best=c;
+  }
+  return best.m;
+}
+
+function crossover(a, b){
+  const child = JSON.parse(JSON.stringify(a));
+  const ga=a.genome, gb=b.genome, gc=child.genome;
+  // uniform crossover
+  for(const key of Object.keys(ga)){
+    if(key==='pollutant_affinity'){
+      gc.pollutant_affinity = ga.pollutant_affinity.map((v,i)=>
+        Math.random()<0.5 ? v : gb.pollutant_affinity[i]);
+    } else {
+      if(Math.random()<0.5) gc[key]=gb[key];
+    }
+  }
+  // inherit species from dominant parent
+  child.species = Math.random()<0.5 ? a.species : b.species;
+  return child;
+}
+
+function mutateMicrobe(m, rate){
+  const g = m.genome;
+  g.pollutant_affinity = g.pollutant_affinity.map(v=>{
+    if(Math.random()<rate){
+      v = Math.max(0, Math.min(1, v + gaussRandom()*0.12));
+    }
+    if(Math.random()<0.008) v = Math.random(); // macro mutation
+    return v;
+  });
+  for(const key of ['decompose_rate','energy_efficiency','mobility','cooperation_factor']){
+    if(Math.random()<rate)
+      g[key] = Math.max(0.01, Math.min(1, g[key]+gaussRandom()*0.1));
+    if(Math.random()<0.008) g[key]=Math.random();
+  }
+  if(Math.random()<rate) g.lifespan = Math.max(30, Math.min(250, g.lifespan+Math.floor(gaussRandom()*15)));
+  if(Math.random()<rate) g.reproduction_threshold = Math.max(30, Math.min(150, g.reproduction_threshold+gaussRandom()*12));
+  // species drift
+  if(Math.random()<0.02) m.species = Math.floor(Math.random()*4);
+}
+
+function gaussRandom(){ // Box-Muller
+  return Math.sqrt(-2*Math.log(Math.random()))*Math.cos(2*Math.PI*Math.random());
+}
+
+function resetPopulation(){
+  population=[];
+  for(let i=0;i<CFG.popSize;i++) population.push(randomMicrobe());
+}
+
+// ════════════════════════════════════════════════════════════
+//  RENDERING
+// ════════════════════════════════════════════════════════════
+// Offscreen buffer for pollution
+let offscreen=null, offCtx=null;
+function ensureOffscreen(){
+  if(!offscreen||offscreen.width!==canvas.width||offscreen.height!==canvas.height){
+    offscreen=document.createElement('canvas');
+    offscreen.width=canvas.width; offscreen.height=canvas.height;
+    offCtx=offscreen.getContext('2d');
+  }
+}
+
+function render(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#0a0a12';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ensureOffscreen();
+
+  // draw pollution heatmap using imageData for speed
+  const imgData = offCtx.createImageData(canvas.width, canvas.height);
+  const d = imgData.data;
+  const cs = CFG.cellSize;
+  const keys=['heavy','organic','oil','micro'];
+  const colors=CFG.pollutantColors;
+  const ckeys=Object.keys(colors);
+
+  for(let gy=0;gy<GH;gy++){
+    for(let gx=0;gx<GW;gx++){
+      let r=0,g=0,b=0,a=0;
+      for(let k=0;k<4;k++){
+        const v = Math.min(1, pollutionGrids[keys[k]][idx(gx,gy)]);
+        if(v>0.005){
+          const col=colors[keys[k]];
+          r+=col[0]*v; g+=col[1]*v; b+=col[2]*v; a=Math.max(a,v*220);
+        }
+      }
+      if(a>4){
+        const px=(gx*cs), py=(gy*cs);
+        for(let dy=0;dy<cs;dy++){
+          for(let dx=0;dx<cs;dx++){
+            const pi=((py+dy)*canvas.width+(px+dx))*4;
+            d[pi]=Math.min(255,r); d[pi+1]=Math.min(255,g);
+            d[pi+2]=Math.min(255,b); d[pi+3]=Math.min(220,a);
+          }
+        }
+      }
+    }
+  }
+  offCtx.putImageData(imgData,0,0);
+  ctx.drawImage(offscreen,0,0);
+
+  // draw microbes
+  const spColors = CFG.speciesColors;
+  for(const m of population){
+    if(!m.alive) continue;
+    const px=m.x*cs, py=m.y*cs;
+    const r = 2.5 + (m.energy/200)*3.5;
+    ctx.beginPath();
+    ctx.arc(px,py,r,0,Math.PI*2);
+    ctx.fillStyle=spColors[m.species];
+    ctx.globalAlpha=0.7+m.energy/400;
+    ctx.fill();
+    ctx.globalAlpha=1;
+    // highlight selected
+    if(m===selectedMicrobe){
+      ctx.beginPath();
+      ctx.arc(px,py,r+3,0,Math.PI*2);
+      ctx.strokeStyle='#fff';
+      ctx.lineWidth=1.5;
+      ctx.stroke();
+    }
+  }
+
+  // grid lines (subtle)
+  ctx.strokeStyle='rgba(255,255,255,0.02)';
+  ctx.lineWidth=0.5;
+  for(let x=0;x<canvas.width;x+=cs*5){
+    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();
+  }
+  for(let y=0;y<canvas.height;y+=cs*5){
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();
+  }
+}
+
+function renderChart(){
+  const w=chartCanvas.width, h=chartCanvas.height;
+  chartCtx.clearRect(0,0,w,h);
+  chartCtx.fillStyle='rgba(0,0,0,.3)';
+  chartCtx.fillRect(0,0,w,h);
+  const bh=fitnessHistory.best, av=fitnessHistory.avg;
+  if(bh.length<2) return;
+  const maxV=Math.max(...bh,0.1);
+  const draw=(arr,color)=>{
+    chartCtx.beginPath();
+    chartCtx.strokeStyle=color; chartCtx.lineWidth=1.8;
+    arr.forEach((v,i)=>{
+      const x=(i/(arr.length-1))*(w-4)+2;
+      const y=h-4-(v/maxV)*(h-8);
+      i===0?chartCtx.moveTo(x,y):chartCtx.lineTo(x,y);
+    });
+    chartCtx.stroke();
+  };
+  draw(bh,'#ffd60a'); draw(av,'#409cff');
+}
+
+// ════════════════════════════════════════════════════════════
+//  UI UPDATE
+// ════════════════════════════════════════════════════════════
+function updateUI(){
+  // fitness
+  const bh=fitnessHistory.best;
+  const best=bh.length?bh[bh.length-1]:0;
+  const avg=fitnessHistory.avg.length?fitnessHistory.avg[fitnessHistory.avg.length-1]:0;
+  const fits=['stat-gen','ov-gen-v'].forEach(id=>document.getElementById(id).textContent=gen);
+  document.getElementById('stat-best').textContent=best.toFixed(3);
+  document.getElementById('stat-avg').textContent=avg.toFixed(3);
+  document.getElementById('stat-pop').textContent=population.length;
+  document.getElementById('stat-tick').textContent=tick;
+  document.getElementById('ov-fit-v').textContent=best.toFixed(2);
+  document.getElementById('ov-pop-v').textContent=population.length;
+
+  // pollution totals
+  const totals={};
+  let maxTotal=0;
+  for(const k of ['heavy','organic','oil','micro']){
+    let s=0; for(const v of pollutionGrids[k]) s+=v;
+    totals[k]=s;
+    maxTotal=Math.max(maxTotal,s);
+  }
+  const maxRef=GW*GH*0.4;
+  const setGauge=(k,pfx)=>{
+    const pct=Math.min(100,totals[k]/maxRef*100);
+    const pctStr=pct.toFixed(1)+'%';
+    document.getElementById('p-'+pfx).textContent=pctStr;
+    document.getElementById('pf-'+pfx).style.width=pct+'%';
+  };
+  setGauge('heavy','heavy'); setGauge('organic','organic');
+  setGauge('oil','oil'); setGauge('micro','micro');
+
+  // species counts
+  const counts=[0,0,0,0];
+  for(const m of population) if(m.alive) counts[m.species]++;
+  const total=Math.max(1,population.length);
+  const ids=['a','b','c','d'];
+  counts.forEach((c,i)=>{
+    document.getElementById('sp-'+ids[i]+'-n').textContent=c;
+    document.getElementById('sp-'+ids[i]+'-bar').style.width=(c/total*100)+'%';
+  });
+
+  renderChart();
+}
+
+// ════════════════════════════════════════════════════════════
+//  GAME LOOP
+// ════════════════════════════════════════════════════════════
+const MS_PER_TICK = 50; // base tick rate
+function loop(ts){
+  if(!running){ animId=null; return; }
+  animId=requestAnimationFrame(loop);
+  const dt=Math.min(ts-lastTime,100); lastTime=ts;
+  accumMs+=dt;
+  const budget=MS_PER_TICK/speed;
+  let ticks=0;
+  while(accumMs>=budget && ticks<speed*2){
+    simulateTick(); accumMs-=budget; ticks++;
+  }
+  render();
+  updateUI();
+}
+
+function toggleRun(){
+  running=!running;
+  document.getElementById('btn-run').textContent=running?'⏸ 일시정지':'▶ 시작';
+  document.getElementById('btn-run').className='tb-btn '+(running?'danger':'primary');
+  if(running){ lastTime=performance.now(); accumMs=0; animId=requestAnimationFrame(loop); }
+}
+
+function stepOnce(){
+  if(running) return;
+  simulateTick(); render(); updateUI();
+}
+
+function setSpeed(s, btn){
+  speed=s;
+  document.querySelectorAll('.sp-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+
+// ════════════════════════════════════════════════════════════
+//  CANVAS MOUSE
+// ════════════════════════════════════════════════════════════
+canvas.addEventListener('mousedown',e=>{
+  if(e.shiftKey){ selectMicrobe(e); return; }
+  mouseDown=true; paintPollution(e);
+});
+canvas.addEventListener('mousemove',e=>{ if(mouseDown) paintPollution(e); });
+canvas.addEventListener('mouseup',()=>mouseDown=false);
+canvas.addEventListener('mouseleave',()=>mouseDown=false);
+
+function getCell(e){
+  const r=canvas.getBoundingClientRect();
+  const px=e.clientX-r.left, py=e.clientY-r.top;
+  return { gx:Math.floor(px/CFG.cellSize), gy:Math.floor(py/CFG.cellSize) };
+}
+
+function paintPollution(e){
+  const {gx,gy}=getCell(e);
+  const brush=3;
+  const toolMap={heavy:'heavy',organic:'organic',oil:'oil',micro:'micro'};
+  const key=toolMap[currentTool]||'heavy';
+  for(let dy=-brush;dy<=brush;dy++){
+    for(let dx=-brush;dx<=brush;dx++){
+      const nx=gx+dx, ny=gy+dy;
+      if(nx<0||nx>=GW||ny<0||ny>=GH) continue;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<=brush){
+        const strength=(1-dist/brush)*0.6;
+        const i2=idx(nx,ny);
+        pollutionGrids[key][i2]=Math.min(1,pollutionGrids[key][i2]+strength);
+      }
+    }
+  }
+}
+
+function selectMicrobe(e){
+  const {gx,gy}=getCell(e);
+  const cs=CFG.cellSize;
+  let best=null, bestDist=999;
+  for(const m of population){
+    const dx=m.x-gx, dy=m.y-gy;
+    const d=Math.sqrt(dx*dx+dy*dy);
+    if(d<bestDist){ bestDist=d; best=m; }
+  }
+  if(best && bestDist<5){
+    selectedMicrobe=best;
+    showGenomePanel(best);
+  }
+}
+
+function showGenomePanel(m){
+  document.getElementById('genome-hint').style.display='none';
+  document.getElementById('genome-panel').classList.add('open');
+  const spNames=['종 A (중금속 특화)','종 B (유기물 특화)','종 C (기름 특화)','종 D (범용)'];
+  const spColors=CFG.speciesColors;
+  document.getElementById('genome-species-info').innerHTML=
+    `<span style="color:${spColors[m.species]}">${spNames[m.species]}</span> · 에너지: ${m.energy.toFixed(1)} · 나이: ${m.age}`;
+  const geneLabels={
+    decompose_rate:'분해 속도',
+    energy_efficiency:'에너지 효율',
+    mobility:'이동 속도',
+    cooperation_factor:'협력 계수',
+    reproduction_threshold:'번식 임계',
+    mutation_rate:'변이율',
+    lifespan:'수명(tick)',
+  };
+  let html='';
+  // affinities first
+  const pollNames=['중금속','유기물','기름','플라스틱'];
+  m.genome.pollutant_affinity.forEach((v,i)=>{
+    html+=`<div class="gene-row2">
+      <span class="gene-name2">친화도·${pollNames[i]}</span>
+      <div class="gene-bar2"><div class="gene-fill2" style="width:${v*100}%"></div></div>
+      <span class="gene-val2">${v.toFixed(2)}</span>
+    </div>`;
+  });
+  for(const [k,lbl] of Object.entries(geneLabels)){
+    let v=m.genome[k];
+    const norm=(k==='lifespan')?v/250:(k==='reproduction_threshold')?v/150:v;
+    html+=`<div class="gene-row2">
+      <span class="gene-name2">${lbl}</span>
+      <div class="gene-bar2"><div class="gene-fill2" style="width:${Math.min(1,norm)*100}%"></div></div>
+      <span class="gene-val2">${typeof v==='number'&&v<10?v.toFixed(2):v}</span>
+    </div>`;
+  }
+  document.getElementById('genome-rows').innerHTML=html;
+}
+
+// ════════════════════════════════════════════════════════════
+//  CONTROLS
+// ════════════════════════════════════════════════════════════
+function resetSim(){
+  if(running) toggleRun();
+  tick=0; gen=0;
+  fitnessHistory={best:[],avg:[]};
+  selectedMicrobe=null;
+  document.getElementById('genome-panel').classList.remove('open');
+  document.getElementById('genome-hint').style.display='';
+  initGrids();
+  initPopulation();
+  addRandomPollution();
+  render(); updateUI();
+  notify('시뮬레이터가 초기화되었습니다');
+}
+
+function setTool(t){
+  currentTool=t;
+  document.querySelectorAll('.tool-btn2').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tool-'+t[0]).classList.add('on');
+}
+
+function clearAllPollution(){
+  for(const k of ['heavy','organic','oil','micro'])
+    pollutionGrids[k].fill(0);
+  notify('모든 오염물질이 제거되었습니다');
+}
+
+function addRandomPollution(){
+  const keys=['heavy','organic','oil','micro'];
+  for(let i=0;i<18;i++){
+    const k=keys[Math.floor(Math.random()*4)];
+    const cx=Math.floor(Math.random()*GW), cy=Math.floor(Math.random()*GH);
+    const r=4+Math.floor(Math.random()*8);
+    for(let dy=-r;dy<=r;dy++){
+      for(let dx=-r;dx<=r;dx++){
+        const nx=cx+dx, ny=cy+dy;
+        if(nx<0||nx>=GW||ny<0||ny>=GH) continue;
+        if(dx*dx+dy*dy<=r*r){
+          const d=Math.sqrt(dx*dx+dy*dy)/r;
+          pollutionGrids[k][idx(nx,ny)]=Math.min(1,(1-d)*0.8+Math.random()*0.2);
+        }
+      }
+    }
+  }
+}
+
+function loadScenario(type){
+  clearAllPollution();
+  population=[];
+  if(type==='heavy'){
+    // concentrated heavy metal
+    for(let i=0;i<8;i++){
+      const cx=Math.floor(Math.random()*GW), cy=Math.floor(Math.random()*GH);
+      const r=6+Math.floor(Math.random()*8);
+      for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++){
+        const nx=cx+dx,ny=cy+dy;
+        if(nx<0||nx>=GW||ny<0||ny>=GH||dx*dx+dy*dy>r*r) continue;
+        pollutionGrids.heavy[idx(nx,ny)]=Math.min(1,0.7+Math.random()*0.3);
+      }
+    }
+    // species A heavy metal specialized
+    for(let i=0;i<CFG.popSize;i++) population.push(randomMicrobe(i<CFG.popSize*0.6?0:Math.floor(Math.random()*4)));
+    notify('시나리오: 중금속 오염 토양');
+  } else if(type==='oil'){
+    // oil spill streaks
+    for(let s=0;s<5;s++){
+      let x=Math.floor(Math.random()*GW), y=Math.floor(Math.random()*GH);
+      for(let step=0;step<60;step++){
+        x+=Math.floor((Math.random()-0.5)*4); y+=Math.floor((Math.random()-0.5)*4);
+        x=Math.max(2,Math.min(GW-3,x)); y=Math.max(2,Math.min(GH-3,y));
+        for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
+          const nx=x+dx,ny=y+dy;
+          if(nx<0||nx>=GW||ny<0||ny>=GH) continue;
+          pollutionGrids.oil[idx(nx,ny)]=Math.min(1,0.6+Math.random()*0.4);
+        }
+      }
+    }
+    for(let i=0;i<CFG.popSize;i++) population.push(randomMicrobe(i<CFG.popSize*0.6?2:Math.floor(Math.random()*4)));
+    notify('시나리오: 기름 유출 해양');
+  } else {
+    // mixed
+    addRandomPollution();
+    for(let i=0;i<CFG.popSize;i++) population.push(randomMicrobe());
+    notify('시나리오: 복합 오염 지역');
+  }
+  render(); updateUI();
+}
+
+function updateParam(k,v){
+  v=parseFloat(v);
+  if(k==='mut'){CFG.mutRate=v; document.getElementById('v-mut').textContent=v.toFixed(3);}
+  else if(k==='cross'){CFG.crossRate=v; document.getElementById('v-cross').textContent=v.toFixed(2);}
+  else if(k==='pop'){CFG.popSize=Math.round(v); document.getElementById('v-pop').textContent=Math.round(v);}
+  else if(k==='elite'){CFG.elitism=Math.round(v); document.getElementById('v-elite').textContent=Math.round(v);}
+}
+
+// ════════════════════════════════════════════════════════════
+//  MODAL CONTENT
+// ════════════════════════════════════════════════════════════
+const MODALS = {
+  about:{
+    title:'DECFI 미생물 환경정화 시뮬레이터',
+    body:`<b style="color:#409cff;font-family:'JetBrains Mono'">DECFI</b> 코딩 동아리의 유전 알고리즘 프로젝트입니다.<br><br>
+    <b>팀원</b>: 이정욱 · 김진우 · 장현준<br><br>
+    <b>핵심 원리:</b> 4종 오염물질(중금속·유기폐기물·기름·미세플라스틱)로 오염된 환경에서 미생물이 유전 알고리즘(GA)을 통해 세대를 거듭하며 진화합니다.<br><br>
+    <b>사용법:</b><br>
+    · ▶ 시작: 시뮬레이션 실행<br>
+    · 캔버스 클릭: 오염물질 추가<br>
+    · Shift+클릭: 미생물 유전자 확인<br>
+    · 시나리오: 특정 오염 환경 로드<br>
+    · GA 파라미터: 실시간 조정 가능`
+  },
+  'ga-status':{
+    title:'GA 진행 현황이란?',
+    body:`유전 알고리즘(Genetic Algorithm)의 핵심 지표입니다.<br><br>
+    <b>세대(Generation)</b>: GA가 몇 번의 진화 사이클을 완료했는지입니다. 100틱마다 자동으로 세대가 전환됩니다.<br><br>
+    <b>최고 적합도(Best Fitness)</b>: 현재 세대에서 가장 잘 적응한 미생물의 점수입니다. 분해량×10 + 생존×5 + 협력×3 - 에너지비용×2로 계산됩니다.<br><br>
+    <b>평균 적합도</b>: 전체 개체군의 평균 점수이며, 세대가 진행될수록 상승하면 정상적인 수렴입니다.`
+  },
+  pollution:{
+    title:'오염도 현황',
+    body:`4종 오염물질의 격자 전체 평균 잔존량입니다.<br><br>
+    <b>중금속</b>: 확산율 낮음(0.018), 잘 분해되지 않음. 종 A가 특화<br>
+    <b>유기폐기물</b>: 확산율 높음(0.07), 자연 감쇠도 빠름. 종 B가 특화<br>
+    <b>기름</b>: 중간 확산율(0.04), 해양 오염의 주요 원인. 종 C가 특화<br>
+    <b>미세플라스틱</b>: 낮은 확산율(0.025), 매우 느린 자연 분해. 범용 종 D가 처리<br><br>
+    미생물의 pollutant_affinity 유전자가 각 오염물질 분해 능력을 결정합니다.`
+  },
+  species:{
+    title:'종 분포 — 자연선택',
+    body:`4개 종은 각각 특정 오염물질 분해에 특화된 유전자 편향을 가집니다.<br><br>
+    세대가 진행될수록 현재 환경의 주요 오염물질을 처리하는 종이 자연선택에 의해 번성하고, 나머지 종은 개체수가 줄어드는 현상이 관찰됩니다.<br><br>
+    이것이 바로 <b>진화적 적응(Evolutionary Adaptation)</b>의 시뮬레이션입니다.<br><br>
+    중금속 오염 환경 → 종 A 우세<br>
+    기름 오염 환경 → 종 C 우세`
+  },
+  tool:{
+    title:'오염 도구',
+    body:`캔버스에 오염물질을 추가하는 도구입니다.<br><br>
+    <b>사용법</b>: 오염 유형을 선택한 뒤 캔버스를 클릭하거나 드래그하면 해당 위치에 오염물질이 확산됩니다.<br><br>
+    오염물질은 셀 오토마타(Cell Automata) 알고리즘으로 인접 셀로 확산되며, 자연 감쇠율에 따라 서서히 줄어듭니다.<br><br>
+    미생물이 자신의 specialization에 맞는 오염물질을 분해하면 에너지를 얻고 번식합니다.`
+  },
+  scenario:{
+    title:'시나리오 프리셋',
+    body:`보고서의 presets/ 디렉토리에 기반한 3가지 시나리오입니다.<br><br>
+    <b>중금속 오염 토양</b>: 산업 폐수가 유입된 토양. 중금속이 집중적으로 분포하며, 종 A가 초기에 유리합니다.<br><br>
+    <b>기름 유출 해양</b>: 해양 사고로 인한 기름 유출. 기름이 줄기 형태로 분포하며, 종 C가 유리합니다.<br><br>
+    <b>복합 오염 지역</b>: 4종 오염물질이 혼재하는 환경. 다양한 종이 경쟁하며 가장 흥미로운 진화 패턴이 나타납니다.`
+  },
+  params:{
+    title:'GA 하이퍼파라미터',
+    body:`보고서의 config.json에 해당하는 실시간 조정 파라미터입니다.<br><br>
+    <b>변이율(Mutation Rate)</b>: 높을수록 탐색 다양성 증가, 낮으면 조기 수렴 위험. 보고서 실험 결과: 0.03이 최적.<br><br>
+    <b>교차율(Crossover Rate)</b>: 두 부모의 유전자를 합치는 확률. 높을수록 부모의 장점을 결합할 가능성 증가.<br><br>
+    <b>개체수(Population)</b>: 클수록 다양성 증가·성능 향상이지만 연산시간이 늘어나는 트레이드오프.<br><br>
+    <b>엘리트 보존(Elitism)</b>: 상위 N개체를 다음 세대에 무조건 복사. 최고 적합도가 퇴보하는 것을 방지.`
+  },
+  genome:{
+    title:'미생물 유전자(Genome)',
+    body:`각 미생물은 8개 유전자(Gene)로 구성된 1개의 염색체(Chromosome)를 가집니다.<br><br>
+    <b>pollutant_affinity</b>: 4종 오염물질별 분해 친화도 (0~1)<br>
+    <b>decompose_rate</b>: 기본 분해 속도<br>
+    <b>energy_efficiency</b>: 에너지 소모율. 낮을수록 오래 생존<br>
+    <b>mobility</b>: 이동 속도. 높으면 넓은 범위 탐색 가능<br>
+    <b>cooperation_factor</b>: 동종 개체와 협력 시 분해 보너스<br>
+    <b>reproduction_threshold</b>: 번식에 필요한 최소 에너지<br>
+    <b>mutation_rate</b>: 자체 돌연변이 확률<br>
+    <b>lifespan</b>: 최대 수명 (tick 단위)<br><br>
+    교차(Crossover) 시 각 유전자를 50% 확률로 두 부모 중 하나에서 상속합니다.`
+  }
+};
+
+function showModal(key){
+  const m=MODALS[key]||{title:'정보',body:'내용 없음'};
+  document.getElementById('modal-title').textContent=m.title;
+  document.getElementById('modal-body').innerHTML=m.body;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+document.getElementById('modal-close').onclick=()=>
+  document.getElementById('modal-overlay').classList.remove('open');
+document.getElementById('modal-overlay').onclick=e=>{
+  if(e.target===document.getElementById('modal-overlay'))
+    document.getElementById('modal-overlay').classList.remove('open');
+};
+
+// ════════════════════════════════════════════════════════════
+//  NOTIFICATION
+// ════════════════════════════════════════════════════════════
+let notifTimer=null;
+function notify(msg){
+  const el=document.getElementById('notif');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(notifTimer);
+  notifTimer=setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+// ════════════════════════════════════════════════════════════
+//  STARTUP
+// ════════════════════════════════════════════════════════════
+resizeCanvas();
+initGrids();
+loadScenario('mixed');
+render();
+updateUI();
+
+// auto-start after short delay
+setTimeout(()=>{
+  notify('시뮬레이터 준비 완료 — ▶ 시작을 눌러 진화를 시작하세요');
+}, 400);
+</script>
+</body>
+</html>
